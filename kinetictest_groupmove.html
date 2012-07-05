@@ -1,0 +1,261 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <style>
+      body {
+        margin: 0px;
+        padding: 0px;
+      }
+      canvas {
+        border: 1px solid #9C9898;
+      }
+    </style>
+    <script src="kinetic-v3.10.2.js"></script>
+    <script>
+      function loadImages(sources, callback) {
+        var assetDir = "assets/";
+        var images = {};
+        var loadedImages = 0;
+        var numImages = 0;
+        for(var src in sources) {
+          numImages++;
+        }
+        for(var src in sources) {
+          images[src] = new Image();
+          images[src].onload = function() {
+            if(++loadedImages >= numImages) {
+              callback(images);
+            }
+          };
+          images[src].src = assetDir + sources[src];
+        }
+      }
+      function isNearOutline(animal, outline) {
+        var a = animal;
+        var o = outline;
+        if(a.attrs.x > o.x - 20 && a.attrs.x < o.x + 20 && a.attrs.y > o.y - 20 && a.attrs.y < o.y + 20) {
+          return true;
+        }
+        else {
+          return false;
+        }
+      }
+      function drawBackground(background, beachImg, text) {
+        var canvas = background.getCanvas();
+        var context = background.getContext();
+        context.drawImage(beachImg, 0, 0);
+        context.font = "20pt Calibri";
+        context.textAlign = "center";
+        context.fillStyle = "white";
+        context.fillText(text, canvas.width / 2, 40);
+      }
+      function initStage(images) {
+        var stage = new Kinetic.Stage({
+          container: "container",
+          width: 578,
+          height: 530
+        });
+        // cattest - Here I just added a shape because I was going insane attempting to figure out layer and event stuff
+        var myEllipse = new Kinetic.Ellipse({
+            x: stage.getWidth() / 4,
+            y: stage.getHeight() / 4,
+            radius: 70,
+            fill: 'red',
+            stroke: 'black',
+            strokeWidth: 4
+        });
+        var background = new Kinetic.Layer();
+        var animalLayer = new Kinetic.Layer();
+        var animalShapes = [];
+        var score = 0;
+        // image positions
+        var animals = {
+          snake: {
+            x: 10,
+            y: 70
+          },
+          giraffe: {
+            x: 90,
+            y: 70
+          },
+          monkey: {
+            x: 275,
+            y: 70
+          },
+          lion: {
+            x: 400,
+            y: 70
+          },
+        };
+        var outlines = {
+          snake_black: {
+            x: 275,
+            y: 350
+          },
+          giraffe_black: {
+            x: 390,
+            y: 250
+          },
+          monkey_black: {
+            x: 300,
+            y: 420
+          },
+          lion_black: {
+            x: 100,
+            y: 390
+          },
+        };
+        // create draggable animals
+        for(var key in animals) {
+          // anonymous function to induce scope
+          (function() {
+            var privKey = key;
+            var anim = animals[key];
+
+            var animal = new Kinetic.Image({
+              image: images[key],
+              x: anim.x,
+              y: anim.y,
+              draggable: true,
+              detectionType: "pixel"
+            });
+            animal.on("dragstart", function() {
+              animal.moveToTop();
+              animalLayer.draw();
+            });
+            /*
+             * check if animal is in the right spot and
+             * snap into place if it is
+             */
+            animal.on("dragend", function() {
+              var outline = outlines[privKey + "_black"];
+              if(!animal.inRightPlace && isNearOutline(animal, outline)) {
+                animal.attrs.x = outline.x;
+                animal.attrs.y = outline.y;
+                animalLayer.draw();
+                // disable drag and drop
+                animal.setDraggable(false);
+                animal.inRightPlace = true;
+
+                if(++score >= 4) {
+                  var text = "You win! Enjoy your booty!"
+                  drawBackground(background, images.beach, text);
+                }
+              }
+              /*
+               * save the image data so that it can be
+               * detected again.  We only need to use the
+               * saveData() method when using the pixel detection type
+               */
+              this.saveData();
+            });
+            // make animal glow on mouseover
+            animal.on("mouseover touchstart", function() {
+              animal.setImage(images[privKey + "_glow"]);
+              animalLayer.draw();
+              document.body.style.cursor = "pointer";
+            });
+            // return animal on mouseout
+            animal.on("mouseout touchend", function() {
+              animal.setImage(images[privKey]);
+              animalLayer.draw();
+              document.body.style.cursor = "default";
+            });
+            animal.on("dragmove", function() {
+              document.body.style.cursor = "pointer";
+            });
+            animalLayer.add(animal);
+            animalShapes.push(animal);
+          })();
+        }
+        // create animal outlines
+        for(var key in outlines) {
+          // anonymous function to induce scope
+          (function() {
+            var imageObj = images[key];
+            var out = outlines[key];
+            var outline = new Kinetic.Image({
+              image: imageObj,
+              x: out.x,
+              y: out.y
+            });
+            animalLayer.add(outline);
+          })();
+        }
+        // cattest - Here I added another shape and was attempting to get the backgroud to respond to events
+        // catguess - events are only triggered on shape areas ???
+        //background.on("click", function() { alert('You Touched?'); });
+        animalLayer.add(myEllipse);
+        stage.add(background);
+        stage.add(animalLayer);
+        /*
+         * since we are using pixel detection, we need to save
+         * the animal data
+         */
+        for(var n = 0; n < animalShapes.length; n++) {
+          animalShapes[n].saveData();
+        }
+        drawBackground(background, images.beach, "CAT: Notice Red Circle bottom and then click PAN");
+        // cattest - Here I added the buttons to turn draggable on and off
+        document.getElementById("panlock").addEventListener("click", function(){
+            alert('Locking Pan - Setting animalLayer.setDraggable: false');
+            animalLayer.setDraggable(false);
+            drawBackground(background, images.beach, "CAT: Now hover over any animal... SEE??");
+        }, false);
+        document.getElementById("panmode").addEventListener("click", function(){
+            alert('Pan Mode - Setting animalLayer.setDraggable: true');
+            animalLayer.setDraggable(true);
+            drawBackground(background, images.beach, "CAT: Drag animal/group +1in right then hit LOCK.");
+        }, false);
+      }
+
+      window.onload = function() { 
+        var sources = {
+          beach: "beach.png",
+          //  beach: "../232.jpg",
+          snake: "snake.png",
+          snake_glow: "snake-glow.png",
+          snake_black: "snake-black.png",
+          lion: "lion.png",
+          lion_glow: "lion-glow.png",
+          lion_black: "lion-black.png",
+          monkey: "monkey.png",
+          monkey_glow: "monkey-glow.png",
+          monkey_black: "monkey-black.png",
+          giraffe: "giraffe.png",
+          giraffe_glow: "giraffe-glow.png",
+          giraffe_black: "giraffe-black.png",
+        };
+        loadImages(sources, initStage);
+      };
+
+    </script>
+  </head>
+  <body onmousedown="return false;">
+    <div id="container"></div>
+    <div id="controlpan">
+        <input type="button" id="panlock" value="LOCK" /><input type="button" id="panmode" value="PAN" />
+    </div>
+    <div id="cattest"><h3></h3>
+        <p>-- intent: Attempting to use kineticjs to move group.</p>
+        <p>-- bug: After moving the group, the event area does not move to the new location of the object image.</p>
+        <h4>-- Reproduce Issue Steps:</h4>
+        <ol>
+            <li>Mouse over any animal and see hover glow.</li>
+            <li>Notice animal positions.</li>
+            <li>Now click PAN to enable group drag.</li>
+            <li>Click on any group element and drag group +1in or so to new position.</li>
+            <li>Now click LOCK to turn group drag off.</li>
+            <li>Mouse over any animal and DO NOT see hover glow.</li>
+            <li>Mouse over any animal ORIGINAL position and see hover glow.</li>
+        </ol>
+        <h4>-- Reference Links</h4>
+        <ol>
+            <li><a href="http://cat.kineticjs-com.horseoff.com/2012/07/04/cattest_kineticjs_groupmove/kinetictest_groupmove.html">pubref: Public Demo Testing the CAT Group Move.</a></li>
+            <li><a href="https://github.com/christrees/cattest_kineticjs_groupmove">githubref: GitHub Repo.</a></li>
+            <li><a href="http://www.html5canvastutorials.com/labs/html5-canvas-animals-on-the-beach-game-with-kineticjs/">parentref: The kineticjs Demo this is based on.</a></li>
+            <li><a href="http://www.kineticjs.com/forum/viewtopic.php?f=8&t=826">pushref1: First place I linked a reference to this in kineticjs forum</a></li>
+        </ol>
+    </div>
+  </body>
+</html>
